@@ -1,0 +1,1211 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  This template creates the security groups required to protect the production assets.
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Asset name parameters
+        Parameters:
+        - NameAccountRef
+        - NameEnvironmentRef
+        - NameRegionRef
+        - NameVpcRef
+#       - NameAZRef
+#       - NameAssetTypeRef
+#       - NameUniqueObjectRef  
+      - Label:
+          default: Tagging parameters
+        Parameters:
+          - BillingTeamName
+          - BillingEnvironment
+          - BillingApplication
+      - Label:
+          default: Global parameters
+        Parameters:
+          - VPCID
+          - GeniusInternalIPRange
+          - GeniusAWSIPRange
+      - Label:
+          default: WSFC cluster 1 communications configuration
+        Parameters:
+          - DB1819ClusterIP        
+          - DB18IP1Cidr
+          - DB18IP2Cidr
+          - DB19IP1Cidr
+          - DB19IP2Cidr
+      - Label:
+          default: WSFC cluster 2 communications configuration
+        Parameters:
+          - DB1011ClusterIP        
+          - DB10IP1Cidr
+          - DB11IP1Cidr
+          - DB11IP2Cidr
+          - DB11IP3Cidr  
+      - Label:
+          default: WSFC remote administration communications configuration
+        Parameters:
+        - RemoteAdminIP1Cidr
+        - RemoteAdminIP2Cidr
+        - RemoteAdminIP3Cidr
+    ParameterLabels:
+      NameAccountRef:
+        default: Account Reference
+      NameEnvironmentRef:
+        default: Environment Reference          
+      NameRegionRef:
+        default: Region Reference
+      NameVpcRef:
+        default: VPC Reference
+#      NameAZRef:
+#        default: AZ Reference
+#      NameAssetTypeRef:
+#        default: Asset Type Reference
+#      NameUniqueObjectRef:
+#        default: Unique Object Reference  
+      BillingTeamName:
+        default: Name of the billing team
+      BillingEnvironment:
+        default: Name of the billing environment
+      BillingApplication:
+        default: Name of the billing application
+      VPCID:
+        default: The VPC in which to create the security group
+      GeniusInternalIPRange:
+        default: Genius internal IP address range
+      GeniusAWSIPRange:
+        default: Genius internal IP address range
+      DB1819ClusterIP:
+        default: DB18/19 cluster IP address
+      DB18IP1Cidr:
+        default: DB18 1st IP address
+      DB18IP2Cidr:
+        default: DB18 2nd IP address
+      DB19IP1Cidr:
+        default: DB19 1st IP address
+      DB19IP2Cidr:
+        default: DB19 2nd IP address
+      DB1011ClusterIP:
+        default: DB10/11 cluster IP address
+      DB10IP1Cidr:
+        default: DB110 1st IP address
+      DB11IP1Cidr:
+        default: DB11 1st IP address
+      DB11IP2Cidr:
+        default: DB11 2nd IP address
+      DB11IP3Cidr:
+        default: DB11 3rd IP address
+      RemoteAdminIP1Cidr:
+        default: Instance Remote Admin IP1
+      RemoteAdminIP2Cidr:
+        default: Instance Remote Admin IP2
+      RemoteAdminIP3Cidr:
+        default: Instance Remote Admin IP3
+
+Parameters:
+  NameAccountRef:
+    Description: Please provide 2 lowercase letters to represent the account in which the asset will be deployed. Eg. nt=network, ss=sharedservices, a1=application1
+    Type: String
+    MinLength: 2
+    MaxLength: 2
+  NameEnvironmentRef:
+    Description: Please provide 1 lowercase letter to represent the environment e.g. 'p' for production, 'u' for UAT, 'd' for development
+    Type: String
+    AllowedValues:
+      - d
+      - u 
+      - p
+  NameRegionRef:
+    Description: Please provide 1 number to represent the region e.g. '1' for the primary region or '2' for the secondary region
+    Type: Number
+    MinValue: 1
+    MaxValue: 9
+  NameVpcRef:
+    Description: Please provide 1 number to denote the VPC e.g. '1' for the 1st VPC in the region
+    Type: Number
+    MinValue: 1
+    MaxValue: 9
+#  NameAZRef:
+#    Description: Please provide 1 lowercase letter to represent the availability zone in which the asset will be deployed. If the asset is not tied to a particular AZ, please select 'x'
+#    Type: String
+#    MinLength: 1
+#    MaxLength: 1
+#    AllowedValues:
+#      - a
+#      - b
+#      - c
+#      - d
+#      - x
+#  NameAssetTypeRef:
+#    Description: Please provide 3 lowercase letters to represent the type of asset that will be deployed
+#    Type: String
+#    MinLength: 3
+#    MaxLength: 3
+#  NameUniqueObjectRef:
+#    Description: Please provide 3 lowercase letters to differentiate this asset from other assets of the same type
+#    Type: String
+#    MinLength: 3
+#    MaxLength: 3
+  BillingTeamName:
+    Default: DBA
+    Description: The name of the owning team
+    Type: String
+  BillingEnvironment:
+    AllowedValues:
+      - CI
+      - UAT
+      - Production
+      - General
+    Default: Production
+    Description: The environment in which the assets will reside.
+    Type: String
+  BillingApplication:
+    Default: DBMigrationProduction
+    Description: The name of the application area
+    Type: String
+  VPCID:
+    Description: ID of the VPC (e.g., vpc-0343606e).
+    Type: AWS::EC2::VPC::Id
+  GeniusInternalIPRange:
+    Description: Enter the IP range in which the connecting client servers reside
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 10.128.0.0/12
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+  GeniusAWSIPRange:
+    Description: Enter the IP range in which the connecting AWS client servers reside
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 10.128.44.0/12
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+  DB1819ClusterIP:
+    Description: Enter the cluster IP address of servers DB18/19
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 10.128.41.70/32
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+  DB18IP1Cidr:
+    Description: Enter the 1st IP address of server DB18
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 10.128.41.71/32
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+  DB18IP2Cidr:
+    Description: Enter the 2nd IP address of server DB18
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 10.128.41.72/32
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+  DB19IP1Cidr:
+    Description: Enter the 1st IP address of server DB19
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 10.128.41.73/32
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+  DB19IP2Cidr:
+    Description: Enter the 2nd IP address of server DB19
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 10.128.41.74/32
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+  DB1011ClusterIP:
+    Description: Enter the cluster IP address of servers DB10/11
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 10.128.28.39/32
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+  DB10IP1Cidr:
+    Description: Enter the 1st IP address of server DB10
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 10.128.28.29/32
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+  DB11IP1Cidr:
+    Description: Enter the 1st IP address of server DB11
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 10.128.28.30/32
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+  DB11IP2Cidr:
+    Description: Enter the 2nd IP address of server DB11
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 10.128.28.41/32
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+  DB11IP3Cidr:
+    Description: Enter the 3rd IP address of server DB11
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 10.128.28.42/32
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+  RemoteAdminIP1Cidr:
+    Description: Enter an IP address range that can be used for remote administration of the EC2 instance.
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    ConstraintDescription: Must be a valid IP CIDR range of the form x.x.x.x/x.
+    Default: 188.241.81.4/32
+  RemoteAdminIP2Cidr:
+    Description: Enter an IP address range that can be used for remote administration of the EC2 instance. If not required, leave as 1.1.1.1/1
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 1.1.1.1/1
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    ConstraintDescription: Must be a valid IP CIDR range of the form x.x.x.x/x.
+  RemoteAdminIP3Cidr:
+    Description: Enter an IP address range that can be used for remote administration of the EC2 instance. If not required, leave as 1.1.1.1/1
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 1.1.1.1/1
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    ConstraintDescription: Must be a valid IP CIDR range of the form x.x.x.x/x.
+
+Conditions:
+  RemoteAdminIP2isSet: !Not [!Equals [!Ref RemoteAdminIP2Cidr, 1.1.1.1/1]]
+  RemoteAdminIP3isSet: !Not [!Equals [!Ref RemoteAdminIP3Cidr, 1.1.1.1/1]]
+  RemoteAdminIP3isSet: !Not [!Equals [!Ref RemoteAdminIP3Cidr, 1.1.1.1/1]]
+    
+Resources:
+  WSFC1SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: WSFC 1 cluster communications
+      # Ref https://docs.microsoft.com/en-US/troubleshoot/windows-server/networking/service-overview-and-network-port-requirements
+      VpcId: !Ref 'VPCID'
+      SecurityGroupIngress:
+        - IpProtocol: udp
+          FromPort: 3343
+          ToPort: 3343
+          CidrIp: !Ref DB18IP1Cidr
+        - IpProtocol: udp
+          FromPort: 3343
+          ToPort: 3343
+          CidrIp: !Ref DB18IP2Cidr
+        - IpProtocol: udp
+          FromPort: 3343
+          ToPort: 3343
+          CidrIp: !Ref DB19IP1Cidr
+        - IpProtocol: udp
+          FromPort: 3343
+          ToPort: 3343
+          CidrIp: !Ref DB19IP2Cidr
+        - IpProtocol: udp
+          FromPort: 3343
+          ToPort: 3343
+          CidrIp: !Ref DB1819ClusterIP
+        - IpProtocol: tcp
+          FromPort: 3343
+          ToPort: 3343
+          CidrIp: !Ref DB18IP1Cidr
+        - IpProtocol: tcp
+          FromPort: 3343
+          ToPort: 3343
+          CidrIp: !Ref DB18IP2Cidr
+        - IpProtocol: tcp
+          FromPort: 3343
+          ToPort: 3343
+          CidrIp: !Ref DB19IP1Cidr
+        - IpProtocol: tcp
+          FromPort: 3343
+          ToPort: 3343
+          CidrIp: !Ref DB19IP2Cidr
+        - IpProtocol: tcp
+          FromPort: 3343
+          ToPort: 3343
+          CidrIp: !Ref DB1819ClusterIP
+        - IpProtocol: tcp
+          FromPort: 135
+          ToPort: 135
+          CidrIp: !Ref DB18IP1Cidr
+        - IpProtocol: tcp
+          FromPort: 135
+          ToPort: 135
+          CidrIp: !Ref DB18IP2Cidr
+        - IpProtocol: tcp
+          FromPort: 135
+          ToPort: 135
+          CidrIp: !Ref DB19IP1Cidr
+        - IpProtocol: tcp
+          FromPort: 135
+          ToPort: 135
+          CidrIp: !Ref DB19IP2Cidr
+        - IpProtocol: tcp
+          FromPort: 135
+          ToPort: 135
+          CidrIp: !Ref DB1819ClusterIP
+        - IpProtocol: udp
+          FromPort: 137
+          ToPort: 137
+          CidrIp: !Ref DB18IP1Cidr
+        - IpProtocol: udp
+          FromPort: 137
+          ToPort: 137
+          CidrIp: !Ref DB18IP2Cidr
+        - IpProtocol: udp
+          FromPort: 137
+          ToPort: 137
+          CidrIp: !Ref DB19IP1Cidr
+        - IpProtocol: udp
+          FromPort: 137
+          ToPort: 137
+          CidrIp: !Ref DB19IP2Cidr
+        - IpProtocol: udp
+          FromPort: 137
+          ToPort: 137
+          CidrIp: !Ref DB1819ClusterIP
+        - IpProtocol: udp
+          FromPort: 49152
+          ToPort: 65535
+          CidrIp: !Ref DB18IP1Cidr
+        - IpProtocol: udp
+          FromPort: 49152
+          ToPort: 65535
+          CidrIp: !Ref DB18IP2Cidr
+        - IpProtocol: udp
+          FromPort: 49152
+          ToPort: 65535
+          CidrIp: !Ref DB19IP1Cidr
+        - IpProtocol: udp
+          FromPort: 49152
+          ToPort: 65535
+          CidrIp: !Ref DB19IP2Cidr
+        - IpProtocol: udp
+          FromPort: 49152
+          ToPort: 65535
+          CidrIp: !Ref DB1819ClusterIP
+        - IpProtocol: tcp
+          FromPort: 49152
+          ToPort: 65535
+          CidrIp: !Ref DB18IP1Cidr
+        - IpProtocol: tcp
+          FromPort: 49152
+          ToPort: 65535
+          CidrIp: !Ref DB18IP2Cidr
+        - IpProtocol: tcp
+          FromPort: 49152
+          ToPort: 65535
+          CidrIp: !Ref DB19IP1Cidr
+        - IpProtocol: tcp
+          FromPort: 49152
+          ToPort: 65535
+          CidrIp: !Ref DB19IP2Cidr
+        - IpProtocol: tcp
+          FromPort: 49152
+          ToPort: 65535
+          CidrIp: !Ref DB1819ClusterIP
+        - IpProtocol: icmp
+          FromPort: -1
+          ToPort: -1
+          CidrIp: !Ref DB18IP1Cidr
+        - IpProtocol: icmp
+          FromPort: -1
+          ToPort: -1
+          CidrIp: !Ref DB18IP2Cidr
+        - IpProtocol: icmp
+          FromPort: -1
+          ToPort: -1
+          CidrIp: !Ref DB19IP1Cidr
+        - IpProtocol: icmp
+          FromPort: -1
+          ToPort: -1
+          CidrIp: !Ref DB19IP2Cidr
+        - IpProtocol: icmp
+          FromPort: -1
+          ToPort: -1
+          CidrIp: !Ref DB1819ClusterIP
+        - IpProtocol: tcp
+          FromPort: 445
+          ToPort: 445
+          CidrIp: !Ref DB18IP1Cidr
+        - IpProtocol: tcp
+          FromPort: 445
+          ToPort: 445
+          CidrIp: !Ref DB18IP2Cidr
+        - IpProtocol: tcp
+          FromPort: 445
+          ToPort: 445
+          CidrIp: !Ref DB19IP1Cidr
+        - IpProtocol: tcp
+          FromPort: 445
+          ToPort: 445
+          CidrIp: !Ref DB19IP2Cidr
+        - IpProtocol: tcp
+          FromPort: 445
+          ToPort: 445
+          CidrIp: !Ref DB1819ClusterIP
+        - IpProtocol: tcp
+          FromPort: 5985
+          ToPort: 5985
+          CidrIp: !Ref DB18IP1Cidr
+        - IpProtocol: tcp
+          FromPort: 5985
+          ToPort: 5985
+          CidrIp: !Ref DB18IP2Cidr
+        - IpProtocol: tcp
+          FromPort: 5985
+          ToPort: 5985
+          CidrIp: !Ref DB19IP1Cidr
+        - IpProtocol: tcp
+          FromPort: 5985
+          ToPort: 5985
+          CidrIp: !Ref DB19IP2Cidr
+        - IpProtocol: tcp
+          FromPort: 5985
+          ToPort: 5985
+          CidrIp: !Ref DB1819ClusterIP
+        - IpProtocol: tcp
+          FromPort: 5022
+          ToPort: 5022
+          CidrIp: !Ref DB18IP1Cidr
+        - IpProtocol: tcp
+          FromPort: 5022
+          ToPort: 5022
+          CidrIp: !Ref DB18IP2Cidr
+        - IpProtocol: tcp
+          FromPort: 5022
+          ToPort: 5022
+          CidrIp: !Ref DB19IP1Cidr
+        - IpProtocol: tcp
+          FromPort: 5022
+          ToPort: 5022
+          CidrIp: !Ref DB19IP2Cidr
+        - IpProtocol: tcp
+          FromPort: 5022
+          ToPort: 5022
+          CidrIp: !Ref DB1819ClusterIP
+      Tags:
+        - Key: Name
+          Value: !Sub '${NameAccountRef}-${NameEnvironmentRef}${NameRegionRef}${NameVpcRef}x-sgp-wsfc1securitygroup'
+        - Key: BillingTeamName
+          Value: !Ref BillingTeamName
+        - Key: BillingEnvironment
+          Value: !Ref BillingEnvironment
+        - Key: BillingApplication
+          Value: !Ref BillingApplication
+  WSFC1SecurityGroupIngressUdp3343:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'WSFC1SecurityGroup'
+      SourceSecurityGroupId: !Ref 'WSFC1SecurityGroup'
+      IpProtocol: udp
+      FromPort: 3343
+      ToPort: 3343
+  WSFC1SecurityGroupIngressTcp3343:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'WSFC1SecurityGroup'
+      SourceSecurityGroupId: !Ref 'WSFC1SecurityGroup'
+      IpProtocol: tcp
+      FromPort: 3343
+      ToPort: 3343
+  WSFC1SecurityGroupIngressTcp135:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'WSFC1SecurityGroup'
+      SourceSecurityGroupId: !Ref 'WSFC1SecurityGroup'
+      IpProtocol: tcp
+      FromPort: 135
+      ToPort: 135
+  WSFC1SecurityGroupIngressUdp137:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'WSFC1SecurityGroup'
+      SourceSecurityGroupId: !Ref 'WSFC1SecurityGroup'
+      IpProtocol: udp
+      FromPort: 137
+      ToPort: 137
+  WSFC1SecurityGroupIngressUdpHighPorts:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'WSFC1SecurityGroup'
+      SourceSecurityGroupId: !Ref 'WSFC1SecurityGroup'
+      IpProtocol: udp
+      FromPort: 49152
+      ToPort: 65535
+  WSFC1SecurityGroupIngressTcpHighPorts:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'WSFC1SecurityGroup'
+      SourceSecurityGroupId: !Ref 'WSFC1SecurityGroup'
+      IpProtocol: tcp
+      FromPort: 49152
+      ToPort: 65535 
+  WSFC1SecurityGroupIngressIcmp:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'WSFC1SecurityGroup'
+      SourceSecurityGroupId: !Ref 'WSFC1SecurityGroup'
+      IpProtocol: icmp
+      FromPort: -1
+      ToPort: -1
+  WSFC1SecurityGroupIngressTcp445:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'WSFC1SecurityGroup'
+      SourceSecurityGroupId: !Ref 'WSFC1SecurityGroup'
+      IpProtocol: tcp
+      FromPort: 445
+      ToPort: 445
+  WSFC1SecurityGroupIngressTcp5985:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'WSFC1SecurityGroup'
+      SourceSecurityGroupId: !Ref 'WSFC1SecurityGroup'
+      IpProtocol: tcp
+      FromPort: 5985
+      ToPort: 5985
+  WSFC1SecurityGroupIngressTcp5022:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'WSFC1SecurityGroup'
+      SourceSecurityGroupId: !Ref 'WSFC1SecurityGroup'
+      IpProtocol: tcp
+      FromPort: 5022
+      ToPort: 5022
+
+  WSFC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: WSFC 2 cluster communications
+      # Ref https://docs.microsoft.com/en-US/troubleshoot/windows-server/networking/service-overview-and-network-port-requirements
+      VpcId: !Ref 'VPCID'
+      SecurityGroupIngress:
+        - IpProtocol: udp
+          FromPort: 3343
+          ToPort: 3343
+          CidrIp: !Ref DB10IP1Cidr
+        - IpProtocol: udp
+          FromPort: 3343
+          ToPort: 3343
+          CidrIp: !Ref DB11IP1Cidr
+        - IpProtocol: udp
+          FromPort: 3343
+          ToPort: 3343
+          CidrIp: !Ref DB11IP2Cidr
+        - IpProtocol: udp
+          FromPort: 3343
+          ToPort: 3343
+          CidrIp: !Ref DB11IP3Cidr
+        - IpProtocol: udp
+          FromPort: 3343
+          ToPort: 3343
+          CidrIp: !Ref DB1011ClusterIP
+        - IpProtocol: tcp
+          FromPort: 3343
+          ToPort: 3343
+          CidrIp: !Ref DB10IP1Cidr
+        - IpProtocol: tcp
+          FromPort: 3343
+          ToPort: 3343
+          CidrIp: !Ref DB11IP1Cidr
+        - IpProtocol: tcp
+          FromPort: 3343
+          ToPort: 3343
+          CidrIp: !Ref DB11IP2Cidr
+        - IpProtocol: tcp
+          FromPort: 3343
+          ToPort: 3343
+          CidrIp: !Ref DB1011ClusterIP
+        - IpProtocol: tcp
+          FromPort: 3343
+          ToPort: 3343
+          CidrIp: !Ref DB11IP3Cidr
+        - IpProtocol: tcp
+          FromPort: 135
+          ToPort: 135
+          CidrIp: !Ref DB10IP1Cidr
+        - IpProtocol: tcp
+          FromPort: 135
+          ToPort: 135
+          CidrIp: !Ref DB11IP1Cidr
+        - IpProtocol: tcp
+          FromPort: 135
+          ToPort: 135
+          CidrIp: !Ref DB11IP2Cidr
+        - IpProtocol: tcp
+          FromPort: 135
+          ToPort: 135
+          CidrIp: !Ref DB11IP3Cidr
+        - IpProtocol: tcp
+          FromPort: 135
+          ToPort: 135
+          CidrIp: !Ref DB1011ClusterIP
+        - IpProtocol: udp
+          FromPort: 137
+          ToPort: 137
+          CidrIp: !Ref DB10IP1Cidr
+        - IpProtocol: udp
+          FromPort: 137
+          ToPort: 137
+          CidrIp: !Ref DB11IP1Cidr
+        - IpProtocol: udp
+          FromPort: 137
+          ToPort: 137
+          CidrIp: !Ref DB11IP2Cidr
+        - IpProtocol: udp
+          FromPort: 137
+          ToPort: 137
+          CidrIp: !Ref DB11IP3Cidr
+        - IpProtocol: udp
+          FromPort: 137
+          ToPort: 137
+          CidrIp: !Ref DB1011ClusterIP
+        - IpProtocol: udp
+          FromPort: 49152
+          ToPort: 65535
+          CidrIp: !Ref DB10IP1Cidr
+        - IpProtocol: udp
+          FromPort: 49152
+          ToPort: 65535
+          CidrIp: !Ref DB11IP1Cidr
+        - IpProtocol: udp
+          FromPort: 49152
+          ToPort: 65535
+          CidrIp: !Ref DB11IP2Cidr
+        - IpProtocol: udp
+          FromPort: 49152
+          ToPort: 65535
+          CidrIp: !Ref DB11IP3Cidr
+        - IpProtocol: udp
+          FromPort: 49152
+          ToPort: 65535
+          CidrIp: !Ref DB1011ClusterIP
+        - IpProtocol: tcp
+          FromPort: 49152
+          ToPort: 65535
+          CidrIp: !Ref DB10IP1Cidr
+        - IpProtocol: tcp
+          FromPort: 49152
+          ToPort: 65535
+          CidrIp: !Ref DB11IP1Cidr
+        - IpProtocol: tcp
+          FromPort: 49152
+          ToPort: 65535
+          CidrIp: !Ref DB11IP2Cidr
+        - IpProtocol: tcp
+          FromPort: 49152
+          ToPort: 65535
+          CidrIp: !Ref DB11IP3Cidr
+        - IpProtocol: tcp
+          FromPort: 49152
+          ToPort: 65535
+          CidrIp: !Ref DB1011ClusterIP
+        - IpProtocol: icmp
+          FromPort: -1
+          ToPort: -1
+          CidrIp: !Ref DB10IP1Cidr
+        - IpProtocol: icmp
+          FromPort: -1
+          ToPort: -1
+          CidrIp: !Ref DB11IP1Cidr
+        - IpProtocol: icmp
+          FromPort: -1
+          ToPort: -1
+          CidrIp: !Ref DB11IP2Cidr
+        - IpProtocol: icmp
+          FromPort: -1
+          ToPort: -1
+          CidrIp: !Ref DB11IP3Cidr
+        - IpProtocol: icmp
+          FromPort: -1
+          ToPort: -1
+          CidrIp: !Ref DB1011ClusterIP
+        - IpProtocol: tcp
+          FromPort: 445
+          ToPort: 445
+          CidrIp: !Ref DB10IP1Cidr
+        - IpProtocol: tcp
+          FromPort: 445
+          ToPort: 445
+          CidrIp: !Ref DB11IP1Cidr
+        - IpProtocol: tcp
+          FromPort: 445
+          ToPort: 445
+          CidrIp: !Ref DB11IP2Cidr
+        - IpProtocol: tcp
+          FromPort: 445
+          ToPort: 445
+          CidrIp: !Ref DB11IP3Cidr
+        - IpProtocol: tcp
+          FromPort: 445
+          ToPort: 445
+          CidrIp: !Ref DB1011ClusterIP
+        - IpProtocol: tcp
+          FromPort: 5985
+          ToPort: 5985
+          CidrIp: !Ref DB10IP1Cidr
+        - IpProtocol: tcp
+          FromPort: 5985
+          ToPort: 5985
+          CidrIp: !Ref DB11IP1Cidr
+        - IpProtocol: tcp
+          FromPort: 5985
+          ToPort: 5985
+          CidrIp: !Ref DB11IP2Cidr
+        - IpProtocol: tcp
+          FromPort: 5985
+          ToPort: 5985
+          CidrIp: !Ref DB11IP3Cidr
+        - IpProtocol: tcp
+          FromPort: 5985
+          ToPort: 5985
+          CidrIp: !Ref DB1011ClusterIP
+        - IpProtocol: tcp
+          FromPort: 5022
+          ToPort: 5022
+          CidrIp: !Ref DB10IP1Cidr
+        - IpProtocol: tcp
+          FromPort: 5022
+          ToPort: 5022
+          CidrIp: !Ref DB11IP1Cidr
+        - IpProtocol: tcp
+          FromPort: 5022
+          ToPort: 5022
+          CidrIp: !Ref DB11IP2Cidr
+        - IpProtocol: tcp
+          FromPort: 5022
+          ToPort: 5022
+          CidrIp: !Ref DB11IP3Cidr
+        - IpProtocol: tcp
+          FromPort: 5022
+          ToPort: 5022
+          CidrIp: !Ref DB1011ClusterIP
+      Tags:
+        - Key: Name
+          Value: !Sub '${NameAccountRef}-${NameEnvironmentRef}${NameRegionRef}${NameVpcRef}x-sgp-wsfc2securitygroup'
+        - Key: BillingTeamName
+          Value: !Ref BillingTeamName
+        - Key: BillingEnvironment
+          Value: !Ref BillingEnvironment
+        - Key: BillingApplication
+          Value: !Ref BillingApplication
+  WSFC2SecurityGroupIngressUdp3343:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'WSFC2SecurityGroup'
+      SourceSecurityGroupId: !Ref 'WSFC2SecurityGroup'
+      IpProtocol: udp
+      FromPort: 3343
+      ToPort: 3343
+  WSFC2SecurityGroupIngressTcp3343:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'WSFC2SecurityGroup'
+      SourceSecurityGroupId: !Ref 'WSFC2SecurityGroup'
+      IpProtocol: tcp
+      FromPort: 3343
+      ToPort: 3343
+  WSFC2SecurityGroupIngressTcp135:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'WSFC2SecurityGroup'
+      SourceSecurityGroupId: !Ref 'WSFC2SecurityGroup'
+      IpProtocol: tcp
+      FromPort: 135
+      ToPort: 135
+  WSFC2SecurityGroupIngressUdp137:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'WSFC2SecurityGroup'
+      SourceSecurityGroupId: !Ref 'WSFC2SecurityGroup'
+      IpProtocol: udp
+      FromPort: 137
+      ToPort: 137
+  WSFC2SecurityGroupIngressUdpHighPorts:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'WSFC2SecurityGroup'
+      SourceSecurityGroupId: !Ref 'WSFC2SecurityGroup'
+      IpProtocol: udp
+      FromPort: 49152
+      ToPort: 65535
+  WSFC2SecurityGroupIngressTcpHighPorts:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'WSFC2SecurityGroup'
+      SourceSecurityGroupId: !Ref 'WSFC2SecurityGroup'
+      IpProtocol: tcp
+      FromPort: 49152
+      ToPort: 65535 
+  WSFC2SecurityGroupIngressIcmp:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'WSFC2SecurityGroup'
+      SourceSecurityGroupId: !Ref 'WSFC2SecurityGroup'
+      IpProtocol: icmp
+      FromPort: -1
+      ToPort: -1
+  WSFC2SecurityGroupIngressTcp445:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'WSFC2SecurityGroup'
+      SourceSecurityGroupId: !Ref 'WSFC2SecurityGroup'
+      IpProtocol: tcp
+      FromPort: 445
+      ToPort: 445
+  WSFC2SecurityGroupIngressTcp5985:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'WSFC2SecurityGroup'
+      SourceSecurityGroupId: !Ref 'WSFC2SecurityGroup'
+      IpProtocol: tcp
+      FromPort: 5985
+      ToPort: 5985
+  WSFC2SecurityGroupIngressTcp5022:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'WSFC2SecurityGroup'
+      SourceSecurityGroupId: !Ref 'WSFC2SecurityGroup'
+      IpProtocol: tcp
+      FromPort: 5022
+      ToPort: 5022
+
+  SQLClientAccessSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: SQL server client access
+      VpcId: !Ref 'VPCID'
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 1433
+          ToPort: 1434
+          CidrIp: !Ref GeniusInternalIPRange
+        - IpProtocol: udp
+          FromPort: 1434
+          ToPort: 1434
+          CidrIp: !Ref GeniusInternalIPRange
+        - IpProtocol: tcp
+          FromPort: 56284
+          ToPort: 56284
+          CidrIp: !Ref GeniusInternalIPRange
+        - IpProtocol: tcp
+          FromPort: 1433
+          ToPort: 1434
+          CidrIp: !Ref GeniusAWSIPRange
+        - IpProtocol: udp
+          FromPort: 1434
+          ToPort: 1434
+          CidrIp: !Ref GeniusAWSIPRange
+        - IpProtocol: tcp
+          FromPort: 56284
+          ToPort: 56284
+          CidrIp: !Ref GeniusAWSIPRange
+      Tags:
+        - Key: Name
+          Value: !Sub '${NameAccountRef}-${NameEnvironmentRef}${NameRegionRef}${NameVpcRef}x-sgp-sqlclientaccesssecuritygroup'
+        - Key: BillingTeamName
+          Value: !Ref BillingTeamName
+        - Key: BillingEnvironment
+          Value: !Ref BillingEnvironment
+        - Key: BillingApplication
+          Value: !Ref BillingApplication
+  SQLClientAccessSecurityGroupTcp1433and1434:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'SQLClientAccessSecurityGroup'
+      SourceSecurityGroupId: !Ref 'SQLClientAccessSecurityGroup'
+      IpProtocol: tcp
+      FromPort: 1433
+      ToPort: 1434
+  SQLClientAccessSecurityGroupUdp1434:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'SQLClientAccessSecurityGroup'
+      SourceSecurityGroupId: !Ref 'SQLClientAccessSecurityGroup'
+      IpProtocol: udp
+      FromPort: 1434
+      ToPort: 1434
+  SQLClientAccessSecurityGroupTcp56284:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'SQLClientAccessSecurityGroup'
+      SourceSecurityGroupId: !Ref 'SQLClientAccessSecurityGroup'
+      IpProtocol: tcp
+      FromPort: 56284
+      ToPort: 56284
+
+  MiscServicesAccessSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: SQL server misc services access
+      VpcId: !Ref 'VPCID'
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 6556
+          ToPort: 6556
+          CidrIp: 10.128.41.226/32
+      Tags:
+        - Key: Name
+          Value: !Sub '${NameAccountRef}-${NameEnvironmentRef}${NameRegionRef}${NameVpcRef}x-sgp-sqlmiscaccesssecuritygroup'
+        - Key: BillingTeamName
+          Value: !Ref BillingTeamName
+        - Key: BillingEnvironment
+          Value: !Ref BillingEnvironment
+        - Key: BillingApplication
+          Value: !Ref BillingApplication
+
+  RemoteAdminSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: SQL server remote admin access
+      Tags:
+        - Key: Name
+          Value: !Sub '${NameAccountRef}-${NameEnvironmentRef}${NameRegionRef}${NameVpcRef}x-sgp-sqlremoteadminsecuritygroup'
+        - Key: BillingTeamName
+          Value: !Ref BillingTeamName
+        - Key: BillingEnvironment
+          Value: !Ref BillingEnvironment
+        - Key: BillingApplication
+          Value: !Ref BillingApplication
+      VpcId:
+        Ref: VPCID
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3389
+          ToPort: 3389
+          CidrIp:
+            Ref: RemoteAdminIP1Cidr
+        - IpProtocol: icmp
+          FromPort: -1
+          ToPort: -1
+          CidrIp:
+            Ref: RemoteAdminIP1Cidr
+  RemoteAdminSecurityGroupIngressRuleMgtRemoteAdminIP2:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Condition: RemoteAdminIP2isSet
+    Properties:
+      GroupId: 
+        Ref: RemoteAdminSecurityGroup
+      IpProtocol: tcp
+      FromPort: 3389
+      ToPort: 3389
+      CidrIp:
+        Ref: RemoteAdminIP2Cidr
+  RemoteAdminSecurityGroupIngressRuleICMPRemoteAdminIP2:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Condition: RemoteAdminIP2isSet
+    Properties:
+      GroupId: 
+        Ref: RemoteAdminSecurityGroup
+      IpProtocol: icmp
+      FromPort: -1
+      ToPort: -1
+      CidrIp:
+        Ref: RemoteAdminIP2Cidr
+  RemoteAdminSecurityGroupIngressRuleMgtRemoteAdminIP3:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Condition: RemoteAdminIP3isSet
+    Properties:
+      GroupId: 
+        Ref: RemoteAdminSecurityGroup
+      IpProtocol: tcp
+      FromPort: 3389
+      ToPort: 3389
+      CidrIp:
+        Ref: RemoteAdminIP3Cidr
+  RemoteAdminSecurityGroupIngressRuleICMPRemoteAdminIP3:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Condition: RemoteAdminIP3isSet
+    Properties:
+      GroupId: 
+        Ref: RemoteAdminSecurityGroup
+      IpProtocol: icmp
+      FromPort: -1
+      ToPort: -1
+      CidrIp:
+        Ref: RemoteAdminIP2Cidr
+
+  FSxSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties: 
+      GroupDescription: FSx client access
+      VpcId: !Ref VPCID
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 445
+          ToPort: 445
+          SourceSecurityGroupId: !Ref WSFC1SecurityGroup
+        - IpProtocol: tcp
+          FromPort: 445
+          ToPort: 445
+          SourceSecurityGroupId: !Ref WSFC2SecurityGroup
+        - IpProtocol: tcp
+          FromPort: 445
+          ToPort: 445
+          CidrIp: !Ref DB18IP1Cidr
+        - IpProtocol: tcp
+          FromPort: 445
+          ToPort: 445
+          CidrIp: !Ref DB18IP2Cidr
+        - IpProtocol: tcp
+          FromPort: 445
+          ToPort: 445
+          CidrIp: !Ref DB19IP1Cidr
+        - IpProtocol: tcp
+          FromPort: 445
+          ToPort: 445
+          CidrIp: !Ref DB19IP2Cidr
+        - IpProtocol: tcp
+          FromPort: 445
+          ToPort: 445
+          CidrIp: !Ref DB1819ClusterIP
+        - IpProtocol: tcp
+          FromPort: 445
+          ToPort: 445
+          CidrIp: !Ref DB10IP1Cidr
+        - IpProtocol: tcp
+          FromPort: 445
+          ToPort: 445
+          CidrIp: !Ref DB11IP1Cidr
+        - IpProtocol: tcp
+          FromPort: 445
+          ToPort: 445
+          CidrIp: !Ref DB11IP2Cidr
+        - IpProtocol: tcp
+          FromPort: 445
+          ToPort: 445
+          CidrIp: !Ref DB11IP3Cidr
+        - IpProtocol: tcp
+          FromPort: 445
+          ToPort: 445
+          CidrIp: !Ref DB1011ClusterIP
+        - IpProtocol: tcp
+          FromPort: 5985
+          ToPort: 5985
+          SourceSecurityGroupId: !Ref WSFC1SecurityGroup
+        - IpProtocol: tcp
+          FromPort: 5985
+          ToPort: 5985
+          SourceSecurityGroupId: !Ref WSFC2SecurityGroup
+        - IpProtocol: tcp
+          FromPort: 5985
+          ToPort: 5985
+          CidrIp: !Ref DB18IP1Cidr
+        - IpProtocol: tcp
+          FromPort: 5985
+          ToPort: 5985
+          CidrIp: !Ref DB18IP2Cidr
+        - IpProtocol: tcp
+          FromPort: 5985
+          ToPort: 5985
+          CidrIp: !Ref DB19IP1Cidr
+        - IpProtocol: tcp
+          FromPort: 5985
+          ToPort: 5985
+          CidrIp: !Ref DB19IP2Cidr
+        - IpProtocol: tcp
+          FromPort: 5985
+          ToPort: 5985
+          CidrIp: !Ref DB1819ClusterIP
+        - IpProtocol: tcp
+          FromPort: 5985
+          ToPort: 5985
+          CidrIp: !Ref DB10IP1Cidr
+        - IpProtocol: tcp
+          FromPort: 5985
+          ToPort: 5985
+          CidrIp: !Ref DB11IP1Cidr
+        - IpProtocol: tcp
+          FromPort: 5985
+          ToPort: 5985
+          CidrIp: !Ref DB11IP2Cidr
+        - IpProtocol: tcp
+          FromPort: 5985
+          ToPort: 5985
+          CidrIp: !Ref DB11IP3Cidr
+        - IpProtocol: tcp
+          FromPort: 5985
+          ToPort: 5985
+          CidrIp: !Ref DB1011ClusterIP
+      Tags:
+        - Key: Name
+          Value: !Sub '${NameAccountRef}-${NameEnvironmentRef}${NameRegionRef}${NameVpcRef}x-sgp-fsxsecuritygroup'
+        - Key: BillingTeamName
+          Value: !Ref BillingTeamName
+        - Key: BillingEnvironment
+          Value: !Ref BillingEnvironment
+        - Key: BillingApplication
+          Value: !Ref BillingApplication
+
+Outputs:
+  WSFC1SecurityGroupID:
+    Description: The ID of the WSFC1SecurityGroups
+    Value:
+      'Fn::GetAtt':
+        - WSFC1SecurityGroup
+        - GroupId
+    Export:
+      Name:
+        'Fn::Sub': '${BillingEnvironment}-WSFC1SecurityGroupID'
+  WSFC2SecurityGroupID:
+    Description: The ID of the WSFC1SecurityGroups
+    Value:
+      'Fn::GetAtt':
+        - WSFC2SecurityGroup
+        - GroupId
+    Export:
+      Name:
+        'Fn::Sub': '${BillingEnvironment}-WSFC2SecurityGroupID'
+  SQLClientAccessSecurityGroupID:
+    Description: The ID of the SQLClientAccessSecurityGroup
+    Value:
+      'Fn::GetAtt':
+        - SQLClientAccessSecurityGroup
+        - GroupId
+    Export:
+      Name:
+        'Fn::Sub': '${BillingEnvironment}-SQLClientAccessSecurityGroupID'
+  MiscServicesAccessSecurityGroupID:
+    Description: The ID of the MiscServicesAccessSecurityGroup
+    Value:
+      'Fn::GetAtt':
+        - MiscServicesAccessSecurityGroup
+        - GroupId
+    Export:
+      Name:
+        'Fn::Sub': '${BillingEnvironment}-MiscServicesAccessSecurityGroupID'
+  RemoteAdminSecurityGroupID:
+    Description: The ID of the RemoteAdminSecurityGroup
+    Value:
+      'Fn::GetAtt':
+        - RemoteAdminSecurityGroup
+        - GroupId
+    Export:
+      Name:
+        'Fn::Sub': '${BillingEnvironment}-RemoteAdminSecurityGroupID'
+  FSxSecurityGroupID:
+    Description: The ID of the FSxSecurityGroup
+    Value:
+      'Fn::GetAtt':
+        - FSxSecurityGroup
+        - GroupId
+    Export:
+      Name:
+        'Fn::Sub': '${BillingEnvironment}-FSxSecurityGroupID'
